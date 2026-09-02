@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ReqCode AI · Requerimientos a código</title>
+<meta name="description" content="Traduce requerimientos de software escritos en lenguaje natural a código funcional con Gemini." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23c2f04c'/%3E%3Cpath d='M9 11l5 5-5 5M17 21h6' stroke='%230b0d12' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/vendor/hljs/styles/atom-one-dark.min.css" />
+<link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">&gt;_</span>
+    <span class="brand-text">
+      <strong>ReqCode AI</strong>
+      <small>Requerimiento en lenguaje natural &rarr; código funcional</small>
+    </span>
+  </div>
+  <div class="status" id="status" data-state="loading">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span class="status-text" id="statusText">Conectando…</span>
+    <code class="status-model" id="statusModel"></code>
+  </div>
+</header>
+
+<main class="workspace">
+
+  <div class="column-left">
+    <section class="panel composer">
+      <div class="panel-head">
+        <span class="step">01</span>
+        <div>
+          <h2>Describe el requerimiento</h2>
+          <p>En lenguaje natural, como se lo explicarías a otra persona del equipo.</p>
+        </div>
+      </div>
+
+      <label class="field-label" for="requirement">Requerimiento</label>
+      <textarea id="requirement" rows="7" spellcheck="false"
+        placeholder="Ejemplo: Necesito una función que reciba una lista de números y calcule el promedio, ignorando los valores negativos."></textarea>
+      <div class="composer-meta">
+        <span id="charCount" class="counter">0 caracteres</span>
+        <button type="button" class="link-btn" id="clearBtn">Limpiar</button>
+      </div>
+
+      <p class="field-label">Ejemplos</p>
+      <div class="examples" id="examples"></div>
+
+      <div class="controls">
+        <div class="control">
+          <label class="field-label" for="language">Lenguaje destino</label>
+          <select id="language"></select>
+        </div>
+        <div class="control">
+          <label class="field-label" for="temperature">
+            Temperature <output id="temperatureValue" for="temperature">0.2</output>
+          </label>
+          <input type="range" id="temperature" min="0" max="1" step="0.05" value="0.2" />
+          <small class="control-hint" id="temperatureHint">Determinista: código consistente entre ejecuciones.</small>
+        </div>
+      </div>
+
+      <button type="button" class="primary" id="generateBtn">
+        <span>Generar código</span>
+        <kbd>Ctrl ↵</kbd>
+      </button>
+    </section>
+
+    <section class="panel history">
+      <div class="panel-head compact">
+        <span class="step">02</span>
+        <div>
+          <h2>Historial de la sesión</h2>
+          <p>Se guarda en memoria: se pierde al recargar.</p>
+        </div>
+      </div>
+      <ol class="history-list" id="historyList"></ol>
+      <p class="history-empty" id="historyEmpty">Todavía no has generado nada.</p>
+    </section>
+  </div>
+
+  <section class="panel output" id="output" aria-live="polite">
+    <div class="state" id="stateIdle">
+      <div class="pipeline">
+        <span>Requerimiento</span><i aria-hidden="true">→</i>
+        <span>Comprensión</span><i aria-hidden="true">→</i>
+        <span>Generación</span><i aria-hidden="true">→</i>
+        <span>Explicación</span>
+      </div>
+      <h3>El resultado aparecerá aquí</h3>
+      <p>Gemini interpreta el requerimiento, identifica el lenguaje, las estructuras de datos y las condiciones, y devuelve el código con su explicación.</p>
+    </div>
+
+    <div class="state hidden" id="stateLoading">
+      <div class="spinner" aria-hidden="true"></div>
+      <h3 id="loadingTitle">Generando…</h3>
+      <p id="loadingText">Comprendiendo el requerimiento.</p>
+    </div>
+
+    <div class="state hidden" id="stateError">
+      <div class="error-icon" aria-hidden="true">!</div>
+      <h3 id="errorTitle">No se pudo generar el código</h3>
+      <p id="errorText"></p>
+      <p class="error-hint hidden" id="errorHint"></p>
+      <button type="button" class="ghost" id="retryBtn">Reintentar</button>
+    </div>
+
+    <article class="result hidden" id="result">
+      <header class="result-head">
+        <div>
+          <h2 id="resultTitle"></h2>
+          <p id="resultArtifact"></p>
+        </div>
+        <ul class="result-meta" id="resultMeta"></ul>
+      </header>
+
+      <section class="comprehension" id="comprehension">
+        <h3>Comprensión del requerimiento</h3>
+        <div class="comprehension-grid" id="comprehensionGrid"></div>
+      </section>
+
+      <div class="tabs" role="tablist">
+        <button role="tab" class="tab active" data-tab="code" aria-selected="true">Código</button>
+        <button role="tab" class="tab" data-tab="explanation" aria-selected="false">Explicación</button>
+        <button role="tab" class="tab" data-tab="test" aria-selected="false">Prueba sugerida</button>
+      </div>
+
+      <div class="tab-panel" id="panelCode">
+        <div class="code-bar">
+          <span class="code-lang" id="codeLang"></span>
+          <button type="button" class="ghost small" id="copyCodeBtn">Copiar</button>
+        </div>
+        <pre class="code"><code id="codeBlock"></code></pre>
+      </div>
+
+      <div class="tab-panel hidden" id="panelExplanation">
+        <p class="explanation" id="explanationText"></p>
+        <div class="assumptions hidden" id="assumptionsBox">
+          <h4>Supuestos que tomó el modelo</h4>
+          <ul id="assumptionsList"></ul>
+        </div>
+      </div>
+
+      <div class="tab-panel hidden" id="panelTest">
+        <div class="code-bar">
+          <span class="code-lang" id="testLang"></span>
+          <button type="button" class="ghost small" id="copyTestBtn">Copiar</button>
+        </div>
+        <pre class="code"><code id="testBlock"></code></pre>
+        <p class="test-empty hidden" id="testEmpty">El modelo no propuso una prueba para este requerimiento.</p>
+      </div>
+    </article>
+  </section>
+
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="/vendor/hljs/highlight.min.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
