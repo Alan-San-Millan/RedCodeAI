@@ -53,6 +53,7 @@ export const LANGUAGES = [
   { id: 'csharp', label: 'C#', highlight: 'csharp', conventions: 'convenciones de .NET y comentarios XML' },
   { id: 'go', label: 'Go', highlight: 'go', conventions: 'gofmt y manejo explícito de errores' },
   { id: 'rust', label: 'Rust', highlight: 'rust', conventions: 'rustfmt, Result/Option y sin unwrap innecesario' },
+  { id: 'c', label: 'C', highlight: 'c', conventions: 'C11, gestión manual de memoria y funciones seguras (snprintf en vez de sprintf)' },
   { id: 'cpp', label: 'C++', highlight: 'cpp', conventions: 'C++17 y la biblioteca estándar' },
   { id: 'php', label: 'PHP', highlight: 'php', conventions: 'PSR-12 y declaraciones de tipo' },
   { id: 'ruby', label: 'Ruby', highlight: 'ruby', conventions: 'guía de estilo de la comunidad Ruby' },

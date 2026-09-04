@@ -10,30 +10,6 @@ const state = {
   busy: false
 };
 
-/* Ejemplos de arranque. El primero es el caso de la presentación. */
-const EXAMPLES = [
-  {
-    chip: 'Promedio sin negativos',
-    language: 'python',
-    text: 'Necesito una función en Python que reciba una lista de números y calcule el promedio, ignorando los valores negativos.'
-  },
-  {
-    chip: 'Validar correo',
-    language: 'javascript',
-    text: 'Necesito una función que valide si una cadena es un correo electrónico y devuelva el dominio cuando lo sea, o null cuando no lo sea.'
-  },
-  {
-    chip: 'Carrito de compras',
-    language: 'typescript',
-    text: 'Necesito una clase Carrito que permita agregar productos con precio y cantidad, quitar un producto por su id y calcular el total aplicando un descuento porcentual opcional.'
-  },
-  {
-    chip: 'Top de clientes',
-    language: 'sql',
-    text: 'Necesito una consulta que liste los cinco clientes con mayor gasto acumulado en los últimos 30 días, mostrando nombre y total gastado.'
-  }
-];
-
 const LOADING_STEPS = [
   'Comprendiendo el requerimiento.',
   'Identificando estructuras de datos y condiciones.',
@@ -48,7 +24,6 @@ init();
 
 async function init() {
   bindEvents();
-  renderExamples();
   updateCharCount();
   updateTemperatureHint();
 
@@ -112,24 +87,6 @@ function bindEvents() {
 }
 
 /* ── Composer ─────────────────────────────────────────────── */
-
-function renderExamples() {
-  $('examples').innerHTML = EXAMPLES
-    .map((example, index) => `<button type="button" class="example" data-index="${index}">${escapeHtml(example.chip)}</button>`)
-    .join('');
-
-  $('examples').querySelectorAll('.example').forEach((button) => {
-    button.addEventListener('click', () => {
-      const example = EXAMPLES[Number(button.dataset.index)];
-      $('requirement').value = example.text;
-      if (state.languages.some((language) => language.id === example.language)) {
-        $('language').value = example.language;
-      }
-      updateCharCount();
-      $('requirement').focus();
-    });
-  });
-}
 
 function updateCharCount() {
   const length = $('requirement').value.trim().length;

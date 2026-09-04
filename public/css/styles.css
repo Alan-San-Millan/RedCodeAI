@@ -214,20 +214,6 @@ select {
 }
 .link-btn:hover { color: var(--accent); }
 
-.examples { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 20px; }
-
-.example {
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-dim);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: 0.15s;
-}
-.example:hover { border-color: var(--accent-dim); color: var(--text); }
-
 .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
 .control { min-width: 0; }
 .control-hint { display: block; margin-top: 7px; font-size: 11px; line-height: 1.45; color: var(--muted); }

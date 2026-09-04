@@ -4,6 +4,8 @@ Prototipo funcional de un servicio que traduce **requerimientos de software escr
 
 Escribes un requerimiento como *"necesito una función que reciba una lista de números y calcule el promedio, ignorando los valores negativos"*, eliges el lenguaje destino y el servicio devuelve el código con resaltado de sintaxis, una explicación en lenguaje natural de la lógica implementada y una prueba unitaria sugerida.
 
+> Para el historial de decisiones de diseño, bugs encontrados y cambios realizados, ver [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
 ## Cómo obtener una API key gratuita de Gemini

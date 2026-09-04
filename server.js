@@ -9,6 +9,11 @@ import { AppError, toUserError } from './src/lib/errors.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Este prototipo corre sobre HTTP plano en local. hsts y upgradeInsecureRequests
+// asumen HTTPS y hacen que el navegador intente cargar CSS/JS por https://localhost,
+// donde no hay nada escuchando: los assets fallan con ERR_FAILED y la página se ve
+// sin estilos. Ambos se desactivan aquí; si esto se despliega alguna vez detrás de
+// HTTPS real, hay que revertir este cambio.
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -16,9 +21,11 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'"]
+      connectSrc: ["'self'"],
+      upgradeInsecureRequests: null
     }
-  }
+  },
+  hsts: false
 }));
 app.use(express.json({ limit: '256kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -66,7 +73,19 @@ function validate(body = {}) {
     );
   }
 
-  const language = findLanguage(String(body.language ?? '').trim()) || findLanguage(DEFAULT_LANGUAGE);
+  const languageId = String(body.language ?? '').trim();
+  let language;
+  if (!languageId) {
+    language = findLanguage(DEFAULT_LANGUAGE);
+  } else {
+    language = findLanguage(languageId);
+    if (!language) {
+      throw new AppError(`El lenguaje "${languageId}" no está soportado.`, {
+        code: 'invalid_language',
+        hint: `Elige uno de los lenguajes disponibles: ${LANGUAGES.map((l) => l.label).join(', ')}.`
+      });
+    }
+  }
 
   let temperature = Number.parseFloat(body.temperature);
   if (!Number.isFinite(temperature)) temperature = config.temperature;
