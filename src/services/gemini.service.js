@@ -9,18 +9,33 @@ import { buildSystemPrompt, buildUserPrompt } from '../prompts/system-prompt.js'
  * `propertyOrdering` obliga al modelo a resolver la comprensión (Función 1) antes de
  * escribir el código, que es el orden en el que razona mejor.
  */
+export const STATUSES = ['ok', 'answer', 'unclear', 'refused'];
+
 const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   propertyOrdering: [
     'status', 'title', 'artifact', 'dataStructures', 'conditions',
-    'edgeCases', 'code', 'explanation', 'suggestedTest', 'assumptions'
+    'edgeCases', 'code', 'explanation', 'references', 'suggestedTest', 'assumptions'
   ],
-  required: ['status', 'title', 'artifact', 'code', 'explanation'],
+  required: ['status', 'title', 'artifact', 'code', 'explanation', 'references'],
   properties: {
     status: {
       type: Type.STRING,
-      enum: ['ok', 'unclear'],
-      description: 'ok si el requerimiento se pudo resolver; unclear si falta información esencial.'
+      enum: STATUSES,
+      description: 'ok: código generado; answer: respuesta a una pregunta de convenciones; unclear: falta información esencial; refused: fuera de alcance o no autorizado.'
+    },
+    references: {
+      type: Type.ARRAY,
+      description: 'Fragmentos de <fuentes> que se aplicaron. Solo ids que aparezcan en el bloque de fuentes.',
+      items: {
+        type: Type.OBJECT,
+        propertyOrdering: ['id', 'applied'],
+        required: ['id', 'applied'],
+        properties: {
+          id: { type: Type.STRING, description: 'Id exacto del fragmento citado.' },
+          applied: { type: Type.STRING, description: 'Qué se aplicó de ese fragmento, en una frase.' }
+        }
+      }
     },
     title: { type: Type.STRING, description: 'Título corto (máx. 6 palabras) que resume el requerimiento.' },
     artifact: { type: Type.STRING, description: 'Artefacto generado: función, clase, script, consulta, etc.' },
@@ -77,12 +92,18 @@ function parseMarkdownFallback(text) {
     dataStructures: [],
     conditions: [],
     edgeCases: [],
-    assumptions: []
+    assumptions: [],
+    references: []
   };
 }
 
+function toReferences(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((r) => ({ id: String(r?.id ?? '').trim(), applied: String(r?.applied ?? '').trim() }));
+}
+
 function normalize(raw) {
-  const status = raw.status === 'unclear' ? 'unclear' : 'ok';
+  const status = STATUSES.includes(raw.status) ? raw.status : 'ok';
   const code = stripFences(raw.code);
 
   if (status === 'ok' && !code) {
@@ -103,23 +124,29 @@ function normalize(raw) {
     dataStructures: toStringArray(raw.dataStructures),
     conditions: toStringArray(raw.conditions),
     edgeCases: toStringArray(raw.edgeCases),
-    assumptions: toStringArray(raw.assumptions)
+    assumptions: toStringArray(raw.assumptions),
+    // Sin verificar: generate.service.js descarta las que no correspondan a fragmentos recuperados.
+    references: toReferences(raw.references)
   };
 }
 
 /**
- * Ejecuta el flujo completo: prompt de sistema con las tres funciones → Gemini →
- * respuesta estructurada lista para pintar en la interfaz.
+ * Llama a Gemini con el prompt de sistema y los fragmentos recuperados, y devuelve la
+ * respuesta estructurada. `onOutbound` recibe el texto exacto que sale hacia Gemini
+ * (solo se usa en el modo de captura de la evaluación).
  */
-export async function generateSolution({ requirement, language, temperature }) {
+export async function generateSolution({ requirement, language, temperature, fragments = [], onOutbound }) {
   const startedAt = Date.now();
   const ai = getClient();
+  const systemInstruction = buildSystemPrompt(language);
+  const contents = buildUserPrompt({ requirement, language, fragments });
+  onOutbound?.({ kind: 'generateContent', model: config.model, systemInstruction, contents });
 
   const response = await ai.models.generateContent({
     model: config.model,
-    contents: buildUserPrompt({ requirement, language }),
+    contents,
     config: {
-      systemInstruction: buildSystemPrompt(language),
+      systemInstruction,
       temperature,
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,

@@ -3,7 +3,8 @@ import helmet from 'helmet';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config, LANGUAGES, DEFAULT_LANGUAGE, findLanguage } from './src/config.js';
-import { generateSolution } from './src/services/gemini.service.js';
+import { handleGenerate } from './src/services/generate.service.js';
+import { initRetriever, ragStatus } from './src/rag/retriever.js';
 import { AppError, toUserError } from './src/lib/errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +46,8 @@ app.get('/api/config', (_req, res) => {
     limits: {
       minRequirementLength: config.minRequirementLength,
       maxRequirementLength: config.maxRequirementLength
-    }
+    },
+    rag: { enabled: Boolean(ragStatus()?.enabled), fragments: ragStatus()?.size || 0 }
   });
 });
 
@@ -97,7 +99,7 @@ function validate(body = {}) {
 app.post('/api/generate', async (req, res) => {
   try {
     const input = validate(req.body);
-    res.json(await generateSolution(input));
+    res.json(await handleGenerate(input));
   } catch (error) {
     const userError = toUserError(error);
     if (userError.status >= 500) console.error('[generate]', error);
@@ -112,5 +114,7 @@ app.listen(config.port, () => {
   console.log(`\n  ReqCode AI · http://localhost:${config.port}`);
   console.log(`  Modelo:      ${config.model}`);
   console.log(`  Temperature: ${config.temperature}`);
-  console.log(`  API key:     ${config.apiKey ? 'configurada' : 'NO configurada — copia .env.example como .env'}\n`);
+  console.log(`  API key:     ${config.apiKey ? 'configurada' : 'NO configurada — copia .env.example como .env'}`);
+  initRetriever();
+  console.log('');
 });
