@@ -55,8 +55,8 @@ export const config = {
     candidates: 8,
     // Máximo de fragmentos que llegan al prompt; el mínimo útil es 3 si superan el umbral.
     topK: readInt(process.env.RAG_TOP_K, 5),
-    // Similitud coseno mínima. PROVISIONAL: se calibra con scripts/calibrate.js.
-    minScore: readFloat(process.env.RAG_MIN_SCORE, 0.66, 0, 1)
+    // Similitud coseno mínima, calibrada con scripts/calibrate.js (ver CHANGELOG, 2026-10-30).
+    minScore: readFloat(process.env.RAG_MIN_SCORE, 0.60, 0, 1)
   },
 
   rateLimit: {
