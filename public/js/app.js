@@ -197,8 +197,9 @@ function showLoading() {
   }, 2600);
 }
 
-function showError(message, hint) {
+function showError(message, hint, title = 'No se pudo generar el código') {
   showState('stateError');
+  $('errorTitle').textContent = title;
   $('errorText').textContent = message;
   $('errorHint').textContent = hint || '';
   $('errorHint').classList.toggle('hidden', !hint);
@@ -211,7 +212,14 @@ function showResult(entry) {
 
   // Requerimiento demasiado vago para resolverse: el modelo lo dice explícitamente.
   if (result.status === 'unclear') {
-    showError('El requerimiento no es suficiente para generar código.', result.explanation);
+    showError('El requerimiento no es suficiente para generar código.', result.explanation, 'Falta información');
+    notifySecrets(result);
+    return;
+  }
+  // Fuera de alcance o no autorizado (revelar el prompt, credenciales, etc.).
+  if (result.status === 'refused') {
+    showError('La solicitud está fuera de lo que ReqCode AI puede hacer.', result.explanation, 'Solicitud rechazada');
+    notifySecrets(result);
     return;
   }
 
@@ -227,9 +235,14 @@ function showResult(entry) {
   if (result.meta.tokens) meta.push(`${result.meta.tokens} tokens`);
   $('resultMeta').innerHTML = meta.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
 
+  renderGrounding(result);
+  renderSecretsNotice(result);
   renderComprehension(result);
   renderCode($('codeBlock'), result.code, result.highlight);
   $('codeLang').textContent = result.languageLabel;
+  // Una respuesta a una pregunta de convenciones puede no traer código.
+  const hasCode = Boolean(result.code);
+  document.querySelector('.tab[data-tab="code"]').classList.toggle('hidden', !hasCode);
 
   $('explanationText').textContent = result.explanation;
   const hasAssumptions = result.assumptions.length > 0;
@@ -246,8 +259,67 @@ function showResult(entry) {
     renderCode($('testBlock'), result.suggestedTest, result.highlight);
     $('testLang').textContent = `Prueba · ${result.languageLabel}`;
   }
+  document.querySelector('.tab[data-tab="test"]').classList.toggle('hidden', !hasTest && result.status === 'answer');
 
-  selectTab('code');
+  renderReferences(result.references || []);
+  selectTab(hasCode ? 'code' : 'explanation');
+}
+
+function renderGrounding(result) {
+  const box = $('grounding');
+  box.replaceChildren();
+  const badge = document.createElement('span');
+  const count = (result.references || []).length;
+  if (result.grounded === false) {
+    badge.className = 'badge ungrounded';
+    badge.textContent = 'Sin respaldo documental';
+    badge.title = result.retrieval?.error || 'Ningún fragmento de las fuentes superó el umbral de similitud: la respuesta se basa solo en el conocimiento general del modelo.';
+  } else {
+    badge.className = 'badge grounded';
+    badge.textContent = count ? `Respaldo documental · ${count} fuente${count === 1 ? '' : 's'} citada${count === 1 ? '' : 's'}` : 'Fuentes recuperadas, ninguna citada';
+  }
+  box.append(badge);
+}
+
+function renderSecretsNotice(result) {
+  const notice = (result.notices || []).find((n) => n.type === 'secrets-masked');
+  $('secretsNotice').textContent = notice ? notice.message : '';
+  $('secretsNotice').classList.toggle('hidden', !notice);
+}
+
+function notifySecrets(result) {
+  const notice = (result.notices || []).find((n) => n.type === 'secrets-masked');
+  if (notice) toast(notice.message, 'error');
+}
+
+function renderReferences(references) {
+  const list = $('referencesList');
+  list.replaceChildren();
+  $('referencesBox').classList.toggle('hidden', references.length === 0);
+  for (const ref of references) {
+    const item = document.createElement('li');
+    const id = document.createElement('code');
+    id.textContent = ref.id;
+    const source = document.createElement('span');
+    source.className = 'ref-source';
+    source.textContent = [ref.source, ref.section].filter(Boolean).join(' — ');
+    item.append(id, source);
+    if (ref.applied) {
+      const applied = document.createElement('p');
+      applied.textContent = ref.applied;
+      item.append(applied);
+    }
+    // La URL viene de los metadatos del índice, no del modelo; aun así solo se aceptan https.
+    if (/^https:\/\//.test(ref.url || '')) {
+      const link = document.createElement('a');
+      link.href = ref.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Ver fuente oficial';
+      item.append(link);
+    }
+    list.append(item);
+  }
 }
 
 function renderComprehension(result) {

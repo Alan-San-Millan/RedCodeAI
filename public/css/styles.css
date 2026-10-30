@@ -466,6 +466,35 @@ pre.code code {
 
 .test-empty { color: var(--muted); font-size: 13px; }
 
+/* RAG: respaldo documental, fuentes citadas y avisos */
+
+.draft-note { margin: 10px 2px 0; font-size: 11px; line-height: 1.5; color: var(--muted); text-align: center; }
+
+.grounding { padding-top: 14px; }
+.badge {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 4px 11px;
+  border: 1px solid;
+}
+.badge.grounded { color: var(--ok); border-color: rgba(70, 211, 138, 0.35); background: rgba(70, 211, 138, 0.08); }
+.badge.ungrounded { color: var(--warn); border-color: rgba(240, 183, 76, 0.4); background: rgba(240, 183, 76, 0.08); cursor: help; }
+
+.notice { margin-top: 12px; border-radius: 11px; padding: 11px 14px; font-size: 12.5px; line-height: 1.55; }
+.notice.warn { color: var(--warn); background: rgba(240, 183, 76, 0.08); border: 1px solid rgba(240, 183, 76, 0.35); }
+
+.references { margin-top: 18px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 14px 16px; }
+.references h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--violet); margin-bottom: 10px; }
+.references ol { margin: 0; padding-left: 18px; display: grid; gap: 10px; }
+.references li { font-size: 12.5px; color: var(--text-dim); }
+.references code { font-family: var(--mono); font-size: 11.5px; color: var(--text); background: var(--surface-3); border-radius: 5px; padding: 1px 6px; }
+.references .ref-source { margin-left: 8px; color: var(--muted); }
+.references p { margin-top: 4px; }
+.references a { display: inline-block; margin-top: 4px; color: var(--violet); font-size: 12px; }
+.references a:hover { color: var(--text); }
+
 /* Toast */
 
 .toast {

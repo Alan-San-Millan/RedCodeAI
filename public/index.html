@@ -64,6 +64,7 @@
         <span>Generar código</span>
         <kbd>Ctrl ↵</kbd>
       </button>
+      <p class="draft-note">El código generado es un borrador: revísalo y pruébalo antes de usarlo. No pegues contraseñas ni claves reales.</p>
     </section>
 
     <section class="panel history">
@@ -114,6 +115,9 @@
         <ul class="result-meta" id="resultMeta"></ul>
       </header>
 
+      <div class="grounding" id="grounding"></div>
+      <div class="notice warn hidden" id="secretsNotice" role="status"></div>
+
       <section class="comprehension" id="comprehension">
         <h3>Comprensión del requerimiento</h3>
         <div class="comprehension-grid" id="comprehensionGrid"></div>
@@ -139,6 +143,10 @@
           <h4>Supuestos que tomó el modelo</h4>
           <ul id="assumptionsList"></ul>
         </div>
+        <section class="references hidden" id="referencesBox">
+          <h4>Fuentes citadas</h4>
+          <ol id="referencesList"></ol>
+        </section>
       </div>
 
       <div class="tab-panel hidden" id="panelTest">
