@@ -51,6 +51,15 @@ export function toUserError(error) {
     });
   }
   if (status === 429) {
+    // La API indica el tipo de cuota en quotaId (p. ej. GenerateRequestsPerDayPerProjectPerModel-FreeTier).
+    // La diaria no se recupera reintentando en segundos, así que se distingue de la por minuto.
+    if (/quotaId[^A-Za-z]*\w*PerDay/.test(raw)) {
+      return new AppError('Se agotó la cuota diaria de la capa gratuita de Gemini para este modelo.', {
+        status: 429,
+        code: 'daily_quota_exceeded',
+        hint: 'Reintentar en unos segundos no sirve: la cuota diaria se repone después (Google indica medianoche, hora del Pacífico). Mientras tanto, cambia GEMINI_MODEL en .env por otro modelo, que tiene su propia cuota.'
+      });
+    }
     return new AppError('Se alcanzó el límite de la capa gratuita de Gemini.', {
       status: 429,
       code: 'quota_exceeded',

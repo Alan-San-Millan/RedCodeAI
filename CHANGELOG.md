@@ -65,11 +65,15 @@ Intentos a `/api/generate`: 7 respuestas 200, 13 respuestas 503 (alta demanda) y
 - **Fragmentos que excedían el límite.** `packParagraphs` no contaba los separadores entre párrafos, y un fragmento de "200 tokens" medía 201. Lo detectó una prueba unitaria; se corrigió midiendo el texto ya unido.
 - **Notas engañosas en el informe.** La primera versión del informe decía que en M2 "se forzó la inclusión" y que U2 "quedó en captures", aunque ninguna de las dos se ejecutó. Se corrigió el generador para que las notas dependan de lo ocurrido, y se regeneró el informe desde los resultados crudos (`npm run eval -- --report <archivo>`), sin volver a llamar a Gemini.
 
-### Pendiente (requiere decisión)
+### Pendiente
 
 - Completar la matriz: faltan 23 ejecuciones, que caben en dos días de cuota con el mismo modelo, o en uno con el plan de pago.
-- El ejecutor debería detenerse al primer 429 de cuota **diaria** en lugar de reintentar durante 40 minutos.
-- N1: limitar a un fragmento por documento haría entrar a CWE-89 (simulado: `cwe-89-mitigations-2` pasa al quinto lugar), pero OWASP Database Security sigue sin superar el umbral en esa consulta.
+
+### Decisiones posteriores a la primera ejecución
+
+- **El ejecutor se detiene ante la cuota diaria.** El servidor distingue el 429 de cuota diaria (`quotaId` con `PerDay`) y responde con el código `daily_quota_exceeded`; la interfaz muestra que reintentar no sirve. `npm run eval` deja de reintentar al recibirlo y registra las ejecuciones siguientes como no ejecutadas **sin enviarlas**, con el caso y la hora en que se agotó. En la primera corrida, reintentar sin esa distinción costó ~40 minutos y 87 respuestas 429. Pruebas en `tests/unit/errors.test.js`.
+- **Observación sobre la cuota.** A las 17:34 UTC la API indicó `retryDelay` de 48331 s (medianoche del Pacífico), pero a las 19:38 UTC una llamada de prueba ya fue aceptada. El momento en que se repone no es confiable; se gastó 1 solicitud en esa comprobación.
+- **N1 queda como fallida documentada.** No se aplicó el límite de un fragmento por documento: aunque mete a CWE-89 entre los cinco primeros, OWASP Database Security sigue sin superar el umbral en esa consulta, así que la parte de citas del criterio seguiría sin cumplirse. El código generado fue seguro en las 3 ejecuciones; el fallo está en la recuperación (la consulta se parece más a autenticación, CWE-306, que a inyección SQL).
 
 ---
 

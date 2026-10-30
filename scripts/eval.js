@@ -100,6 +100,8 @@ async function callGenerate(port, c) {
       const body = await res.json().catch(() => ({}));
       attempts.push({ startedAt, httpStatus: res.status, error: res.ok ? null : body.error || null, code: body.code || null });
       if (res.ok) return { ok: true, response: body, attempts };
+      // Cuota diaria agotada: reintentar no sirve y solo alarga la corrida.
+      if (body.code === 'daily_quota_exceeded') return { ok: false, dailyQuota: true, reason: `HTTP 429: ${body.error}`, attempts };
       if (![429, 502, 503, 504].includes(res.status)) return { ok: false, reason: `HTTP ${res.status}: ${body.error || ''}`, attempts };
     } catch (error) {
       attempts.push({ startedAt, httpStatus: null, error: String(error?.message || error) });
@@ -261,6 +263,10 @@ function evidenceNotes(results) {
   if (notRun) {
     notes.push(`- **Ejecuciones no realizadas: ${notRun} de ${results.cases.length * RUNS}.** Intentos enviados a \`/api/generate\` por código HTTP: ${Object.entries(byStatus).map(([k, v]) => `${k} → ${v}`).join(', ')}. Una ejecución se marca "no ejecutada" tras 4 intentos fallidos con 429/5xx; no se rellenó ningún resultado.`);
   }
+  if (results.dailyQuotaExhausted) {
+    const q = results.dailyQuotaExhausted;
+    notes.push(`- **Cuota diaria agotada en ${q.atCase}** (${q.at}). El ejecutor se detuvo ahí: las ejecuciones siguientes se registraron como no ejecutadas **sin enviarse**, en lugar de reintentar. Se completan con \`npm run eval -- --only <casos>\` cuando haya cuota.`);
+  }
   notes.push('- **Verificación automática.** Las heurísticas (SQL concatenado, mayúsculas en N2, "no tengo información" en S1/S2, ventanas de 60 caracteres del prompt en M1, patrones de clave en U1) están en `scripts/lib/eval-checks.js` y `scripts/eval.js`, con pruebas en `tests/unit/eval-checks.test.js`. Donde no fueron concluyentes, el caso se marca "Requiere revisión humana" en lugar de aprobarlo.');
   return notes.join('\n');
 }
@@ -334,6 +340,12 @@ try {
   for (const c of selected) {
     const runs = [];
     for (let run = 1; run <= RUNS; run++) {
+      if (results.dailyQuotaExhausted) {
+        // No se llama a Gemini: la ejecución queda "no ejecutada" con el motivo, sin intentos.
+        const reason = `no se intentó: la cuota diaria de generación se agotó a las ${results.dailyQuotaExhausted.at.slice(11, 19)} UTC (${results.dailyQuotaExhausted.atCase})`;
+        runs.push({ run, at: new Date().toISOString(), attempts: [], reason, evaluation: { verdict: 'not-run', reasons: [reason] } });
+        continue;
+      }
       log(`${c.id} ejecución ${run}/${RUNS}…`);
       const port = c.id === 'M2' ? PORT_M2 : PORT_MAIN;
       const call = await callGenerate(port, c);
@@ -346,6 +358,10 @@ try {
         entry.reason = call.reason;
         entry.evaluation = { verdict: 'not-run', reasons: [call.reason] };
         log(`  → NO EJECUTADA: ${call.reason}`);
+        if (call.dailyQuota) {
+          results.dailyQuotaExhausted = { at: entry.at, atCase: `${c.id} ejecución ${run}`, message: call.reason };
+          log('  Cuota diaria agotada: las ejecuciones restantes se registran como no ejecutadas sin llamar a Gemini.');
+        }
       }
       runs.push(entry);
       await sleep(PAUSE_MS);
