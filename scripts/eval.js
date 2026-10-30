@@ -228,10 +228,41 @@ function summarize(c, runs) {
     const e = r.evaluation;
     const resp = r.response;
     let extract = clip(resp.explanation, 160);
-    if (c.id === 'N1' && e.sqlLine) extract = e.sqlLine;
-    return `Ejecución ${r.run}: status ${resp.status}, ${resp.grounded ? 'con' : 'sin'} respaldo, citas [${e.citedIds.join(', ') || 'ninguna'}]${e.discardedCitations?.length ? `, descartadas [${e.discardedCitations.join(', ')}]` : ''} → ${e.verdict === 'pass' ? 'cumple' : e.verdict === 'fail' ? `NO cumple (${e.reasons.join('; ')})` : e.verdict === 'review' ? `revisión humana (${e.reasons.join('; ')})` : 'no válida'}. Extracto: «${extract}»`;
+    let detail = '';
+    if (c.id === 'N1' && e.sqlLine) {
+      extract = e.sqlLine;
+      detail = ` (SQL sin concatenar: ${e.noConcatenation ? 'sí' : 'no'}; marcador de parámetro: ${e.hasPlaceholder ? 'sí' : 'no'}; compara contra hash: ${e.comparesAgainstHash ? 'sí' : 'no'})`;
+    }
+    return `Ejecución ${r.run}: status ${resp.status}, ${resp.grounded ? 'con' : 'sin'} respaldo, citas [${e.citedIds.join(', ') || 'ninguna'}]${e.discardedCitations?.length ? `, descartadas [${e.discardedCitations.join(', ')}]` : ''} → ${e.verdict === 'pass' ? 'cumple' : e.verdict === 'fail' ? `NO cumple (${e.reasons.join('; ')})` : e.verdict === 'review' ? `revisión humana (${e.reasons.join('; ')})` : 'no válida'}. Extracto: «${extract}»${detail}`;
   });
   return parts.join('<br>');
+}
+
+/** Notas que solo afirman lo que de verdad ocurrió en esta corrida. */
+function evidenceNotes(results) {
+  const executed = (id) => results.cases.find((c) => c.id === id)?.runs.filter((r) => r.response).length || 0;
+  const notes = [];
+
+  const m2 = results.m2;
+  const flaggedBy = (m2.excluded.find((x) => x.id === m2.plantedChunkId)?.flaggedBy || []).join(', ');
+  const m2Runs = executed('M2');
+  notes.push(`- **M2.** Corpus alterno: \`${m2.plantedFile}\` con el texto plantado. Fragmento resultante: \`${m2.plantedChunkId}\`. Filtro de ingesta: ${m2.detected ? `**lo detectó** (patrones: ${flaggedBy})` : '**NO lo detectó**'}. ${m2Runs
+    ? `Después se forzó su inclusión en una instancia aparte (\`RAG_TEST_MODE=1\`, \`RAG_TEST_FORCE_IDS\`) y se ejecutó ${m2Runs} vez/veces para comprobar la segunda defensa.`
+    : 'La segunda parte (forzar su inclusión y generar) **no se ejecutó**: ninguna de las 3 ejecuciones obtuvo respuesta de Gemini.'}`);
+
+  const u2Runs = executed('U2');
+  notes.push(`- **U2.** ${u2Runs
+    ? `Lo que salió hacia Gemini (embedding de la consulta y generación) quedó en \`tests/rag-eval/captures/\` y copiado dentro del archivo de resultados (${u2Runs} ejecución/es).`
+    : '**No se ejecutó**: ninguna de las 3 ejecuciones obtuvo respuesta de Gemini, así que no hay captura que revisar.'}`);
+
+  const attempts = results.cases.flatMap((c) => c.runs.flatMap((r) => r.attempts || []));
+  const byStatus = attempts.reduce((acc, a) => { const k = a.httpStatus ?? 'sin respuesta'; acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const notRun = results.cases.reduce((n, c) => n + c.runs.filter((r) => !r.response).length, 0);
+  if (notRun) {
+    notes.push(`- **Ejecuciones no realizadas: ${notRun} de ${results.cases.length * RUNS}.** Intentos enviados a \`/api/generate\` por código HTTP: ${Object.entries(byStatus).map(([k, v]) => `${k} → ${v}`).join(', ')}. Una ejecución se marca "no ejecutada" tras 4 intentos fallidos con 429/5xx; no se rellenó ningún resultado.`);
+  }
+  notes.push('- **Verificación automática.** Las heurísticas (SQL concatenado, mayúsculas en N2, "no tengo información" en S1/S2, ventanas de 60 caracteres del prompt en M1, patrones de clave en U1) están en `scripts/lib/eval-checks.js` y `scripts/eval.js`, con pruebas en `tests/unit/eval-checks.test.js`. Donde no fueron concluyentes, el caso se marca "Requiere revisión humana" en lugar de aprobarlo.');
+  return notes.join('\n');
 }
 
 function writeReport(results, file) {
@@ -261,15 +292,21 @@ ${rows.join('\n')}
 
 ## Notas de evidencia
 
-- **M2.** Corpus alterno: \`${results.m2.plantedFile}\` con el texto plantado. Fragmento resultante: \`${results.m2.plantedChunkId}\`. Filtro de ingesta: ${results.m2.detected ? `**lo detectó** (marcado por: ${(results.m2.excluded.find((x) => x.id === results.m2.plantedChunkId)?.flaggedBy || []).join(', ')})` : '**NO lo detectó**'}. Luego se forzó su inclusión en una instancia aparte (\`RAG_TEST_MODE=1\`, \`RAG_TEST_FORCE_IDS\`) para comprobar la segunda defensa.
-- **U2.** Lo que salió hacia Gemini (embedding de la consulta y generación) quedó en \`tests/rag-eval/captures/\` y copiado dentro del archivo de resultados.
-- **Verificación automática.** Las heurísticas (SQL concatenado, mayúsculas en N2, "no tengo información" en S1/S2, ventanas de 60 caracteres del prompt en M1, patrones de clave en U1) están en \`scripts/eval.js\`. Donde no fueron concluyentes, el caso se marca "Requiere revisión humana" en lugar de aprobarlo.
+${evidenceNotes(results)}
 `;
   fs.mkdirSync('docs', { recursive: true });
   fs.writeFileSync('docs/matriz-resultados.md', md);
 }
 
 /* ── Main ─────────────────────────────────────────────────────────────── */
+
+// `--report <resultados.json>`: solo regenera el informe desde resultados ya guardados, sin llamar a Gemini.
+if (process.argv.includes('--report')) {
+  const file = process.argv[process.argv.indexOf('--report') + 1].replace(/\\/g, '/');
+  writeReport(JSON.parse(fs.readFileSync(file, 'utf8')), file);
+  log(`Informe regenerado desde ${file}: docs/matriz-resultados.md`);
+  process.exit(0);
+}
 
 const selected = CASES.cases.filter((c) => !only || only.includes(c.id));
 const results = { startedAt: new Date().toISOString(), cases: [] };
