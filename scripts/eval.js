@@ -376,6 +376,7 @@ try {
   fs.mkdirSync('tests/rag-eval/results', { recursive: true });
   const file = `tests/rag-eval/results/${STAMP}.json`;
   fs.writeFileSync(file, JSON.stringify(results, null, 2));
-  if (results.cases.length) writeReport(results, file);
-  log(`Resultados: ${file}${results.cases.length ? ' · Informe: docs/matriz-resultados.md' : ''}`);
+  // Una corrida parcial (--only) no reemplaza el informe de la matriz completa.
+  if (results.cases.length && !only) writeReport(results, file);
+  log(`Resultados: ${file}${results.cases.length && !only ? ' · Informe: docs/matriz-resultados.md' : ' · corrida parcial: docs/matriz-resultados.md no se modificó'}`);
 }
