@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "check": "node --check server.js && node --check src/config.js && node --check src/lib/errors.js && node --check src/prompts/system-prompt.js && node --check src/services/gemini.service.js && node --check public/js/app.js"
+    "ingest": "node scripts/ingest.js",
+    "calibrate": "node scripts/calibrate.js",
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "eval": "node scripts/eval.js",
+    "check": "node --check server.js && node --check public/js/app.js && node --check scripts/ingest.js"
   },
   "engines": {
     "node": ">=20"

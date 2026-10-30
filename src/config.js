@@ -30,6 +30,14 @@ function readInt(raw, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function readBool(raw, fallback) {
+  if (raw === undefined || raw === '') return fallback;
+  return ['1', 'true', 'yes', 'si', 'sí'].includes(String(raw).trim().toLowerCase());
+}
+
+/** Dimensiones del embedding: fijas porque el índice y las consultas deben coincidir. */
+export const EMBEDDING_DIMENSIONS = 768;
+
 export const config = {
   port: readInt(process.env.PORT, 3000),
   apiKey: (process.env.GEMINI_API_KEY || '').trim(),
@@ -37,7 +45,31 @@ export const config = {
   temperature: readFloat(process.env.GEMINI_TEMPERATURE, DEFAULT_TEMPERATURE, 0, 1),
   timeoutMs: readInt(process.env.GEMINI_TIMEOUT_MS, 90000),
   minRequirementLength: MIN_REQUIREMENT_LENGTH,
-  maxRequirementLength: MAX_REQUIREMENT_LENGTH
+  maxRequirementLength: MAX_REQUIREMENT_LENGTH,
+
+  rag: {
+    enabled: readBool(process.env.RAG_ENABLED, true),
+    embeddingModel: (process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001').trim(),
+    indexPath: (process.env.RAG_INDEX_PATH || 'data/rag-index.json').trim(),
+    // Candidatos por cada vía (coseno y palabras clave) antes de fusionar.
+    candidates: 8,
+    // Máximo de fragmentos que llegan al prompt; el mínimo útil es 3 si superan el umbral.
+    topK: readInt(process.env.RAG_TOP_K, 5),
+    // Similitud coseno mínima. PROVISIONAL: se calibra con scripts/calibrate.js.
+    minScore: readFloat(process.env.RAG_MIN_SCORE, 0.66, 0, 1)
+  },
+
+  rateLimit: {
+    max: readInt(process.env.RATE_LIMIT_MAX, 10),
+    windowMs: readInt(process.env.RATE_LIMIT_WINDOW_MS, 60000)
+  },
+
+  // Solo para la evaluación (npm run eval). Nunca activos por defecto.
+  test: {
+    capture: readBool(process.env.RAG_TEST_CAPTURE, false),
+    mode: readBool(process.env.RAG_TEST_MODE, false),
+    forceIds: (process.env.RAG_TEST_FORCE_IDS || '').split(',').map((s) => s.trim()).filter(Boolean)
+  }
 };
 
 /**
