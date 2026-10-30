@@ -6,6 +6,7 @@ import { config, LANGUAGES, DEFAULT_LANGUAGE, findLanguage } from './src/config.
 import { handleGenerate } from './src/services/generate.service.js';
 import { initRetriever, ragStatus } from './src/rag/retriever.js';
 import { AppError, toUserError } from './src/lib/errors.js';
+import { rateLimitMiddleware } from './src/security/rate-limit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -96,13 +97,14 @@ function validate(body = {}) {
   return { requirement, language, temperature };
 }
 
-app.post('/api/generate', async (req, res) => {
+app.post('/api/generate', rateLimitMiddleware(config.rateLimit), async (req, res) => {
   try {
     const input = validate(req.body);
     res.json(await handleGenerate(input));
   } catch (error) {
     const userError = toUserError(error);
-    if (userError.status >= 500) console.error('[generate]', error);
+    // Solo estado y mensaje del error: nunca el cuerpo de la solicitud, que puede traer secretos.
+    if (userError.status >= 500) console.error(`[generate] ${error?.status || ''} ${error?.name || 'Error'}: ${String(error?.message || '').slice(0, 300)}`);
     res.status(userError.status).json({ error: userError.message, hint: userError.hint, code: userError.code });
   }
 });
